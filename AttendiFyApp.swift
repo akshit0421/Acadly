@@ -11,11 +11,13 @@ import SwiftUI
 struct AttendiFyApp: App {
 
     @StateObject private var coursesViewModel = CoursesViewModel()
+    @StateObject private var scheduleViewModel = ScheduleViewModel()
 
     var body: some Scene {
         WindowGroup {
             RootTabView()
                 .environmentObject(coursesViewModel)
+                .environmentObject(scheduleViewModel)
         }
     }
 }

@@ -9,14 +9,16 @@ import SwiftUI
 
 struct AddScheduleView: View {
 
-    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var coursesViewModel: CoursesViewModel
 
     @State private var selectedSubjectID: UUID?
-    @State private var selectedDay: Weekday = .monday
+    @State private var selectedDays: Set<Weekday> = [.monday]
+    @State private var isDayPickerExpanded = false
     @State private var startTime = Date()
     @State private var endTime = Date().addingTimeInterval(3600)
-    @State private var location = ""
+    @State private var lecture = ""
+    @State private var building = ""
 
     var onSave: (ScheduleItem) -> Void
 
@@ -34,47 +36,96 @@ struct AddScheduleView: View {
                 }
 
                 Section("Schedule") {
-                    Picker("Day", selection: $selectedDay) {
-                        ForEach(Weekday.allCases) { day in
-                            Text(day.rawValue.capitalized)
+                    DisclosureGroup(isExpanded: $isDayPickerExpanded) {
+                        ForEach(Array(Weekday.allCases.enumerated()), id: \.offset) { _, day in
+                            Button {
+                                toggleDay(day)
+                            } label: {
+                            HStack {
+                                    Text(day.displayName)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if selectedDays.contains(day) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Color.accentColor)
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
                         }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Repeat on Days")
+                            Text(selectedDaysSummary)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .padding(.vertical, 2)
                     }
 
                     DatePicker("Start Time", selection: $startTime, displayedComponents: .hourAndMinute)
                     DatePicker("End Time", selection: $endTime, displayedComponents: .hourAndMinute)
 
-                    TextField("Location", text: $location)
+                    TextField("Lecture", text: $lecture)
+                    TextField("Building (Optional)", text: $building)
                 }
             }
             .navigationTitle("New Class")
             .toolbar {
 
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 }
 
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
 
                         guard let subjectID = selectedSubjectID else { return }
+                        guard !selectedDays.isEmpty else { return }
 
-                        let item = ScheduleItem(
-                            id: UUID(),
-                            subjectID: subjectID,
-                            day: selectedDay,
-                            startTime: startTime,
-                            endTime: endTime,
-                            location: location
-                        )
+                        for day in Weekday.allCases where selectedDays.contains(day) {
+                            let item = ScheduleItem(
+                                id: UUID(),
+                                subjectID: subjectID,
+                                day: day,
+                                startTime: startTime,
+                                endTime: endTime,
+                                lecture: lecture,
+                                building: building
+                            )
 
-                        onSave(item)
-                        presentationMode.wrappedValue.dismiss()
+                            onSave(item)
+                        }
+                        dismiss()
                     }
-                    .disabled(selectedSubjectID == nil)
+                    .disabled(
+                        selectedSubjectID == nil ||
+                        selectedDays.isEmpty ||
+                        lecture.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
                 }
             }
         }
+    }
+
+    private func toggleDay(_ day: Weekday) {
+        if selectedDays.contains(day) {
+            selectedDays.remove(day)
+        } else {
+            selectedDays.insert(day)
+        }
+    }
+
+    private var selectedDaysSummary: String {
+        let selected = Weekday.allCases.filter { selectedDays.contains($0) }
+        guard !selected.isEmpty else { return "None" }
+        return selected.map { $0.shortName }.joined(separator: ", ")
     }
 }

@@ -15,10 +15,10 @@ struct WeekSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
 
-            Text(day.rawValue.capitalized)
+            Text(day.displayName)
                 .font(.title3.weight(.semibold))
 
-            ForEach(items) { item in
+            ForEach(items.sorted { $0.startTime < $1.startTime }) { item in
                 ScheduleRowView(item: item)
             }
         }
