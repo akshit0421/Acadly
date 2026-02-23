@@ -17,11 +17,11 @@ let package = Package(
             name: "AttendiFy",
             targets: ["AppModule"],
             bundleIdentifier: "com.akshit.AttendiFy",
-            teamIdentifier: "",
+            teamIdentifier: "FDCSUUATA8",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .leaf),
-            accentColor: .presetColor(.mint),
+            accentColor: .presetColor(.indigo),
             supportedDeviceFamilies: [
                 .pad,
                 .phone
@@ -40,5 +40,5 @@ let package = Package(
             path: "."
         )
     ],
-    swiftLanguageVersions: [.v6]
+    swiftLanguageVersions: [.version("6")]
 )
