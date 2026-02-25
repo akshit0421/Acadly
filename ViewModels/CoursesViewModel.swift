@@ -60,7 +60,13 @@ final class CoursesViewModel: ObservableObject {
     }
 
     var currentSGPA: Double {
-        predictedCGPA
+        // credit-weighted GPA from inferredGrade.points per subject
+        let included = subjects.filter { $0.includeInGPA }
+        guard !included.isEmpty else { return 0 }
+        let totalCredits = included.reduce(0.0) { $0 + $1.credits }
+        let totalPoints = included.reduce(0.0) { $0 + ($1.inferredGrade.points * $1.credits) }
+        guard totalCredits > 0 else { return 0 }
+        return totalPoints / totalCredits
     }
 
     var cumulativeCGPA: Double {
@@ -113,7 +119,14 @@ final class CoursesViewModel: ObservableObject {
     }
 
     @discardableResult
-    func addSubject(name: String, shortName: String, credits: Double, minimumRequired: Double, departmentRuleSet: DepartmentRuleSet) -> UUID? {
+    func addSubject(
+        name: String,
+        shortName: String,
+        credits: Double,
+        minimumRequired: Double,
+        departmentRuleSet: DepartmentRuleSet,
+        components: [AssessmentComponent] = []
+    ) -> UUID? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return nil }
 
@@ -125,6 +138,7 @@ final class CoursesViewModel: ObservableObject {
             shortName: finalShortName,
             credits: credits,
             minimumRequired: minimumRequired,
+            assessmentComponents: components,
             academicProfile: SubjectAcademicProfile(departmentRuleSet: departmentRuleSet)
         )
 
@@ -195,14 +209,18 @@ final class CoursesViewModel: ObservableObject {
     }
 
     func calculateProjectedCGPA(simulatedEndSemMarks: [UUID: Double]) -> Double {
+        calculateProjectedSGPA(simulatedEndSemMarks: simulatedEndSemMarks)
+    }
+
+    func calculateProjectedSGPA(simulatedEndSemMarks: [UUID: Double]) -> Double {
         let included = subjects.filter { $0.includeInGPA }
         guard !included.isEmpty else { return 0 }
 
         let totalCredits = included.reduce(0.0) { $0 + $1.credits }
-        let totalPoints = included.reduce(0.0) { partialResult, subject in
+        let totalPoints = included.reduce(0.0) { acc, subject in
             let simulated = simulatedEndSemMarks[subject.id] ?? subject.requiredEndSemMarks
             let projected = subject.projectedOverallPercentage(simulatedEndSem: simulated)
-            return partialResult + (GradeLetter.fromPercentage(projected).points * subject.credits)
+            return acc + (GradeLetter.fromPercentage(projected).points * subject.credits)
         }
 
         guard totalCredits > 0 else { return 0 }

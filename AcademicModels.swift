@@ -359,6 +359,50 @@ struct Subject: Identifiable, Codable, Equatable {
         return (weightedScored / weightedTotal) * 100
     }
 
+    /// Returns a list of (component, requiredMarks) for all components where earnedMarks == nil,
+    /// distributing the remaining required percentage across unscored components proportionally by weightage.
+    /// Uses the formula: x >= (P*T - A) / (1 - P) applied per remaining component.
+    var requiredMarksDistribution: [(component: AssessmentComponent, required: Double)] {
+        let target = targetGrade.requiredPercentage  // e.g. 85.0 for A+
+
+        // Split into scored and unscored
+        let scored = assessmentComponents.filter { $0.earnedMarks != nil }
+        let unscored = assessmentComponents.filter { $0.earnedMarks == nil }
+
+        guard !unscored.isEmpty else { return [] }
+
+        // Calculate weighted score from already-earned marks (normalized to 100)
+        let earnedWeightedSum = scored.reduce(0.0) { sum, c in
+            let ratio = (c.earnedMarks ?? 0) / max(1, c.maxMarks)
+            return sum + ratio * c.weightage
+        }
+        let earnedWeightTotal = scored.reduce(0.0) { $0 + $1.weightage }
+        _ = earnedWeightTotal
+        let unscoredWeightTotal = unscored.reduce(0.0) { $0 + $1.weightage }
+
+        // Remaining required weighted score needed from unscored components
+        let required = (target - earnedWeightedSum)  // how much of unscoredWeight we need
+
+        return unscored.map { component in
+            // Proportional share: allocate required marks by this component's weight share
+            let share = unscoredWeightTotal > 0 ? component.weightage / unscoredWeightTotal : 0
+            let requiredWeighted = required * share   // weighted points needed from this component
+            let requiredRaw = (requiredWeighted / max(1, component.weightage)) * component.maxMarks
+            let clamped = min(component.maxMarks, max(0, requiredRaw))
+            return (component: component, required: clamped)
+        }
+    }
+
+    /// Whether the target grade is mathematically achievable with full marks on remaining components
+    var isTargetFeasible: Bool {
+        let dist = requiredMarksDistribution
+        if dist.isEmpty {
+            // All scored — check current
+            return (weightedScoredPercentage ?? 0) >= targetGrade.requiredPercentage
+        }
+        return dist.allSatisfy { $0.required <= $0.component.maxMarks }
+    }
+
     var isTargetGradeImpossible: Bool {
         guard let current = weightedScoredPercentage else { return false }
         let required = targetGrade.requiredPercentage

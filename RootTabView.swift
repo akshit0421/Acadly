@@ -12,7 +12,6 @@ struct RootTabView: View {
         case dashboard
         case subjects
         case cgpa
-        case analytics
         case profile
     }
 
@@ -43,14 +42,6 @@ struct RootTabView: View {
             .tag(Tab.cgpa)
             .tabItem {
                 Label("CGPA", systemImage: "chart.line.uptrend.xyaxis")
-            }
-
-            NavigationStack {
-                AnalyticsView()
-            }
-            .tag(Tab.analytics)
-            .tabItem {
-                Label("Analytics", systemImage: "chart.bar")
             }
 
             NavigationStack {

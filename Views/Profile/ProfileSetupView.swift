@@ -4,12 +4,7 @@ struct ProfileSetupView: View {
     @EnvironmentObject private var coursesViewModel: CoursesViewModel
     @EnvironmentObject private var scheduleViewModel: ScheduleViewModel
 
-    @AppStorage("attendify.profile.name") private var profileName: String = "Student"
-
-    @State private var baselineCGPA = ""
-    @State private var baselineCredits = ""
     @State private var showResetAlert = false
-    @State private var saved = false
     @State private var animateIn = false
 
     var body: some View {
@@ -21,7 +16,6 @@ struct ProfileSetupView: View {
 
                 snapshotCard
                 statsRow
-                profileSetupCard
                 dangerZoneCard
             }
             .padding(16)
@@ -30,8 +24,6 @@ struct ProfileSetupView: View {
         }
         .appScreenBackground()
         .onAppear {
-            baselineCGPA = String(format: "%.2f", coursesViewModel.previousCGPA)
-            baselineCredits = String(format: "%.0f", coursesViewModel.previousCredits)
             withAnimation(.spring(response: 0.52, dampingFraction: 0.86)) {
                 animateIn = true
             }
@@ -69,78 +61,6 @@ struct ProfileSetupView: View {
             statTile("Pred. SGPA", String(format: "%.2f", coursesViewModel.currentSGPA), color: AppTheme.accent)
             statTile("At Risk", "\(coursesViewModel.riskSubjects.count)", color: coursesViewModel.riskSubjects.isEmpty ? .green : .orange)
         }
-    }
-
-    private var profileSetupCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Profile Setup")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .textCase(.uppercase)
-
-            entryField("Name", text: $profileName)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Department")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Picker("Department", selection: Binding(
-                    get: { coursesViewModel.selectedDepartment },
-                    set: { coursesViewModel.updateDepartment($0) }
-                )) {
-                    ForEach(DepartmentRuleSet.allCases, id: \.self) { item in
-                        Text(item.rawValue.capitalized).tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Semester")
-                    .font(.caption2)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Stepper(
-                    "\(coursesViewModel.currentSemester)",
-                    value: Binding(
-                        get: { coursesViewModel.currentSemester },
-                        set: { coursesViewModel.updateSemester($0) }
-                    ),
-                    in: 1...12
-                )
-            }
-
-            entryField("Baseline CGPA", text: $baselineCGPA, keyboard: .decimalPad)
-            Text("Your CGPA from previous semesters (used to calculate cumulative GPA)")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .padding(.horizontal, 4)
-
-            entryField("Previous Credits", text: $baselineCredits, keyboard: .numberPad)
-            Text("Total credits you've completed before this semester")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .padding(.horizontal, 4)
-
-            Button {
-                coursesViewModel.updatePastAcademics(
-                    previousCGPA: Double(baselineCGPA) ?? coursesViewModel.previousCGPA,
-                    previousCredits: Double(baselineCredits) ?? coursesViewModel.previousCredits
-                )
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    saved = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        saved = false
-                    }
-                }
-            } label: {
-                Text(saved ? "✓ Saved" : "Save Profile")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(AppPrimaryButtonStyle())
-        }
-        .appCard()
     }
 
     private var dangerZoneCard: some View {
@@ -185,17 +105,6 @@ struct ProfileSetupView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(AppTheme.card)
         )
-    }
-
-    private func entryField(_ title: String, text: Binding<String>, keyboard: UIKeyboardType = .default) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(AppTheme.textSecondary)
-            TextField("", text: text)
-                .keyboardType(keyboard)
-                .textFieldStyle(.roundedBorder)
-        }
     }
 
     private func riskColor(for attendance: Double) -> Color {
