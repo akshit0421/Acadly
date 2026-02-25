@@ -112,9 +112,10 @@ final class CoursesViewModel: ObservableObject {
         [.choMarksPrediction, .cgpaCalculator]
     }
 
-    func addSubject(name: String, shortName: String, credits: Double, minimumRequired: Double, departmentRuleSet: DepartmentRuleSet) {
+    @discardableResult
+    func addSubject(name: String, shortName: String, credits: Double, minimumRequired: Double, departmentRuleSet: DepartmentRuleSet) -> UUID? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
+        guard !trimmedName.isEmpty else { return nil }
 
         let trimmedShortName = shortName.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalShortName = trimmedShortName.isEmpty ? trimmedName : trimmedShortName
@@ -128,6 +129,7 @@ final class CoursesViewModel: ObservableObject {
         )
 
         subjects.append(subject)
+        return subject.id
     }
 
     func delete(at offsets: IndexSet) {
