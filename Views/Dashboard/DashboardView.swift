@@ -27,20 +27,20 @@ struct DashboardView: View {
     @State private var undoToast: UndoToastPayload?
     @State private var undoDismissTask: Task<Void, Never>?
     @State private var animatedCheckItemID: UUID?
+    @State private var isHealthExpanded = false
     @State private var animateIn = false
 
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                heroCard
-                insightCard
-                todayClassesSection
-            }
-            .padding(16)
+        VStack(alignment: .leading, spacing: 12) {
+            headerInline
+            healthChip
+            todayClassesSection
+                .frame(maxHeight: .infinity, alignment: .top)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .appScreenBackground()
         .overlay(alignment: .bottom) {
             if let undoToast {
@@ -60,80 +60,73 @@ struct DashboardView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-                .textCase(.uppercase)
-            Text(greeting)
-                .font(.title2.weight(.bold))
-                .foregroundStyle(AppTheme.textPrimary)
-            Text("Here's your academic status")
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-        }
+    private var headerInline: some View {
+        Text("\(greeting) · \(now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))")
+            .font(.caption)
+            .foregroundStyle(AppTheme.textSecondary)
     }
 
-    private var heroCard: some View {
-        HStack(spacing: 16) {
-            ProgressRingView(progress: min(1, max(0, overallAttendanceAverage / 100)))
-                .frame(width: 88, height: 88)
-                .overlay {
-                    VStack(spacing: 1) {
-                        Text("\(Int(overallAttendanceAverage.rounded()))%")
-                            .font(.headline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(riskColor(for: overallAttendanceAverage))
-                        Text("Attend")
-                            .font(.caption2)
-                            .foregroundStyle(AppTheme.textSecondary)
-                    }
+    private var healthChip: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                isHealthExpanded.toggle()
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: riskCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(riskCount == 0 ? Color.green : Color.orange)
+                    Text(healthSummaryText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Spacer()
+                    Image(systemName: isHealthExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Academic Health")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
-                statRow("Pred. CGPA", String(format: "%.2f", predictedCGPA), color: AppTheme.accent)
-                statRow("At Risk", "\(riskCount) subj.", color: riskCount > 0 ? .orange : .green)
-                statRow("Subjects", "\(viewModel.subjects.count)", color: AppTheme.textSecondary)
+                if isHealthExpanded {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Predicted CGPA \(String(format: "%.2f", predictedCGPA))")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                        Text(insightMessage)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .lineLimit(2)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
-
-            Spacer()
         }
+        .buttonStyle(.plain)
         .appCard()
         .scaleEffect(animateIn ? 1 : 0.98)
         .opacity(animateIn ? 1 : 0)
         .animation(.spring(response: 0.55, dampingFraction: 0.82), value: animateIn)
     }
 
-    private var insightCard: some View {
-        Text(insightMessage)
-            .font(.footnote)
-            .foregroundStyle(AppTheme.textSecondary)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(AppTheme.accent.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(AppTheme.accent.opacity(0.35), lineWidth: 1)
-                    )
-            )
-    }
-
     private var todayClassesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("Today's Classes")
-                .font(.caption)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
-                .textCase(.uppercase)
-
-            ForEach(todayItems) { item in
-                todayClassCard(item)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if todayItems.isEmpty {
+                Text("No classes scheduled today.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .padding(.vertical, 12)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(todayItems) { item in
+                            todayClassCard(item)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
             }
         }
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: todayItems.map(\.id))
@@ -234,6 +227,12 @@ struct DashboardView: View {
         if hour < 12 { return "Good morning" }
         if hour < 17 { return "Good afternoon" }
         return "Good evening"
+    }
+
+    private var healthSummaryText: String {
+        if riskCount == 0 { return "On Track ✓" }
+        if riskCount == 1 { return "1 subject at risk ⚠" }
+        return "\(riskCount) subjects at risk ⚠"
     }
 
     private var insightMessage: String {
@@ -406,18 +405,6 @@ struct DashboardView: View {
         if percentage >= 75 { return AppTheme.accent }
         if percentage >= 60 { return .orange }
         return .red
-    }
-
-    private func statRow(_ label: String, _ value: String, color: Color) -> some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(color)
-        }
     }
 
     private func statusBadge(label: String, color: Color) -> some View {
