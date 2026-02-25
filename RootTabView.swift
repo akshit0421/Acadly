@@ -16,22 +16,37 @@ struct RootTabView: View {
                 DashboardView()
             }
             .tabItem {
-                Label("Dashboard", systemImage: "rectangle.grid.2x2.fill")
+                Label("Dashboard", systemImage: "house.fill")
             }
 
             NavigationStack {
                 CoursesView()
             }
             .tabItem {
-                Label("Courses", systemImage: "book.fill")
+                Label("Subjects", systemImage: "book.fill")
             }
 
             NavigationStack {
-                ScheduleView()
+                AcademicPlannerView()
             }
             .tabItem {
-                Label("Schedule", systemImage: "calendar")
+                Label("Planner", systemImage: "target")
+            }
+
+            NavigationStack {
+                ProfileSetupView()
+            }
+            .tabItem {
+                Label("Profile", systemImage: "person.crop.circle")
             }
         }
+        .tint(AppTheme.accent)
+        .appScreenBackground()
     }
+}
+
+#Preview {
+    RootTabView()
+        .environmentObject(CoursesViewModel())
+        .environmentObject(ScheduleViewModel())
 }

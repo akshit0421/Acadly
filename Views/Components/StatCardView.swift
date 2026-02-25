@@ -32,20 +32,17 @@ struct StatCardView<Content: View>: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label(title, systemImage: systemImage)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.textSecondary)
                 
                 Text(value)
                     .font(.largeTitle.bold())
+                    .foregroundStyle(AppTheme.textPrimary)
             }
             
             Spacer()
             
             content
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
+        .appCard()
     }
 }

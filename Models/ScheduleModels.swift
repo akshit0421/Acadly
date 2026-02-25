@@ -44,6 +44,7 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
     var endTime: Date
     var lecture: String
     var building: String?
+    var lecturesCount: Int
 
     init(
         id: UUID = UUID(),
@@ -52,7 +53,8 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
         startTime: Date,
         endTime: Date,
         lecture: String,
-        building: String? = nil
+        building: String? = nil,
+        lecturesCount: Int = 1
     ) {
         self.id = id
         self.subjectID = subjectID
@@ -60,6 +62,7 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
         self.startTime = startTime
         self.endTime = endTime
         self.lecture = lecture.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.lecturesCount = max(1, lecturesCount)
 
         let trimmedBuilding = building?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.building = (trimmedBuilding?.isEmpty == false) ? trimmedBuilding : nil
@@ -73,6 +76,7 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
         case endTime
         case lecture
         case building
+        case lecturesCount
         case location
     }
 
@@ -89,6 +93,7 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
             ?? container.decodeIfPresent(String.self, forKey: .location)
             ?? ""
         let building = try container.decodeIfPresent(String.self, forKey: .building)
+        let lecturesCount = try container.decodeIfPresent(Int.self, forKey: .lecturesCount) ?? 1
 
         self.init(
             id: id,
@@ -97,7 +102,8 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
             startTime: startTime,
             endTime: endTime,
             lecture: lecture,
-            building: building
+            building: building,
+            lecturesCount: lecturesCount
         )
     }
 
@@ -110,5 +116,6 @@ struct ScheduleItem: Identifiable, Codable, Equatable {
         try container.encode(endTime, forKey: .endTime)
         try container.encode(lecture, forKey: .lecture)
         try container.encodeIfPresent(building, forKey: .building)
+        try container.encode(lecturesCount, forKey: .lecturesCount)
     }
 }

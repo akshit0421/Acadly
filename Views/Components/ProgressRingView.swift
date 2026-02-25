@@ -19,12 +19,12 @@ struct ProgressRingView: View {
         ZStack {
             
             Circle()
-                .stroke(Color(.systemGray5), lineWidth: 8)
+                .stroke(AppTheme.track, lineWidth: 8)
             
             Circle()
                 .trim(from: 0, to: clampedProgress)
                 .stroke(
-                    Color.accentColor,
+                    AppTheme.accent,
                     style: StrokeStyle(
                         lineWidth: 8,
                         lineCap: .round

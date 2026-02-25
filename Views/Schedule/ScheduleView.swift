@@ -22,7 +22,7 @@ struct ScheduleView: View {
                                 .font(.headline)
                             Text("No schedule entries for \(selectedWeekday.displayName), \(selectedDate.formatted(date: .abbreviated, time: .omitted)).")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
@@ -40,6 +40,7 @@ struct ScheduleView: View {
                 .padding(16)
             }
         }
+        .appScreenBackground()
         .navigationTitle("Schedule")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -99,7 +100,7 @@ struct ScheduleView: View {
                         .frame(width: 64, height: 68)
                         .background(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(isSameDay(date, selectedDate) ? Color.accentColor : Color(.secondarySystemGroupedBackground))
+                                .fill(isSameDay(date, selectedDate) ? AppTheme.accent : AppTheme.card)
                         )
                         .foregroundStyle(isSameDay(date, selectedDate) ? Color.white : Color.primary)
                     }
@@ -112,12 +113,12 @@ struct ScheduleView: View {
     private func timelineIndicator(isLast: Bool) -> some View {
         VStack(spacing: 0) {
             Circle()
-                .fill(Color.accentColor)
+                .fill(AppTheme.accent)
                 .frame(width: 10, height: 10)
 
             if !isLast {
                 Rectangle()
-                    .fill(Color(.separator))
+                    .fill(AppTheme.timeline)
                     .frame(width: 2, height: 104)
                     .padding(.top, 4)
             }

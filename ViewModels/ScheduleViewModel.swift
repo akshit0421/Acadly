@@ -22,8 +22,36 @@ final class ScheduleViewModel: ObservableObject {
         items.filter { $0.day == day }
     }
 
+    func currentOrUpcomingClass(on referenceDate: Date = Date()) -> (item: ScheduleItem, isCurrent: Bool)? {
+        let today = weekday(for: referenceDate)
+        let todayItems = items(for: today)
+
+        guard !todayItems.isEmpty else { return nil }
+
+        let nowMinutes = minutesSinceMidnight(referenceDate)
+        let sorted = todayItems.sorted { minutesSinceMidnight($0.startTime) < minutesSinceMidnight($1.startTime) }
+
+        if let current = sorted.first(where: {
+            let start = minutesSinceMidnight($0.startTime)
+            let end = minutesSinceMidnight($0.endTime)
+            return nowMinutes >= start && nowMinutes <= end
+        }) {
+            return (current, true)
+        }
+
+        if let upcoming = sorted.first(where: { minutesSinceMidnight($0.startTime) > nowMinutes }) {
+            return (upcoming, false)
+        }
+
+        return nil
+    }
+
     func clearPersistenceError() {
         persistenceErrorMessage = nil
+    }
+
+    func resetAllData() {
+        items = []
     }
 
     private func loadItems() {
@@ -54,5 +82,24 @@ final class ScheduleViewModel: ObservableObject {
                 self?.saveItems()
             }
             .store(in: &cancellables)
+    }
+
+    private func weekday(for date: Date) -> Weekday {
+        switch Calendar.current.component(.weekday, from: date) {
+        case 1: return .sunday
+        case 2: return .monday
+        case 3: return .tuesday
+        case 4: return .wednesday
+        case 5: return .thursday
+        case 6: return .friday
+        default: return .saturday
+        }
+    }
+
+    private func minutesSinceMidnight(_ date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        return hour * 60 + minute
     }
 }

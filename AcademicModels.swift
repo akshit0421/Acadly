@@ -39,6 +39,19 @@ enum GradeLetter: String, Codable, CaseIterable, Identifiable {
         case .f: return 0.0
         }
     }
+
+    static func fromPercentage(_ value: Double) -> GradeLetter {
+        switch value {
+        case 90...: return .aPlus
+        case 80..<90: return .a
+        case 70..<80: return .bPlus
+        case 60..<70: return .b
+        case 50..<60: return .cPlus
+        case 45..<50: return .c
+        case 40..<45: return .d
+        default: return .f
+        }
+    }
 }
 
 // MARK: - Attendance Status
@@ -114,7 +127,7 @@ struct Subject: Identifiable, Codable, Equatable {
     var id: UUID
     var name: String
     var shortName: String
-    var credits: Int
+    var credits: Double
     var includeInGPA: Bool
     var minimumRequired: Double
 
@@ -131,11 +144,17 @@ struct Subject: Identifiable, Codable, Equatable {
     // Scalability
     var academicProfile: SubjectAcademicProfile
 
+    // CHO + CGPA extension fields
+    var internalMarksObtained: Double
+    var internalMaxMarks: Double
+    var endSemMaxMarks: Double
+    var choPassingMarks: Double
+
     init(
         id: UUID = UUID(),
         name: String,
         shortName: String,
-        credits: Int,
+        credits: Double,
         includeInGPA: Bool = true,
         minimumRequired: Double = 75.0,
         attendanceRecords: [AttendanceRecord] = [],
@@ -144,7 +163,11 @@ struct Subject: Identifiable, Codable, Equatable {
         assessmentComponents: [AssessmentComponent] = [],
         targetGrade: GradeLetter = .a,
         predictedGrade: GradeLetter? = nil,
-        academicProfile: SubjectAcademicProfile = SubjectAcademicProfile()
+        academicProfile: SubjectAcademicProfile = SubjectAcademicProfile(),
+        internalMarksObtained: Double = 0,
+        internalMaxMarks: Double = 40,
+        endSemMaxMarks: Double = 60,
+        choPassingMarks: Double = 40
     ) {
         self.id = id
         self.name = name
@@ -159,6 +182,10 @@ struct Subject: Identifiable, Codable, Equatable {
         self.targetGrade = targetGrade
         self.predictedGrade = predictedGrade
         self.academicProfile = academicProfile
+        self.internalMaxMarks = max(0, internalMaxMarks)
+        self.endSemMaxMarks = max(0, endSemMaxMarks)
+        self.choPassingMarks = max(0, choPassingMarks)
+        self.internalMarksObtained = min(max(0, internalMarksObtained), self.internalMaxMarks)
     }
 
     private var minimumRequiredRatio: Double {
@@ -234,6 +261,31 @@ struct Subject: Identifiable, Codable, Equatable {
         return "You can miss \(classesCanMiss) classes"
     }
 
+    var requiredEndSemRaw: Double {
+        choPassingMarks - internalMarksObtained
+    }
+
+    var requiredEndSemMarks: Double {
+        min(endSemMaxMarks, max(0, requiredEndSemRaw))
+    }
+
+    var isCHORisk: Bool {
+        requiredEndSemRaw > endSemMaxMarks
+    }
+
+    var currentOverallPercentage: Double {
+        let totalMax = internalMaxMarks + endSemMaxMarks
+        guard totalMax > 0 else { return 0 }
+        return (internalMarksObtained / totalMax) * 100.0
+    }
+
+    func projectedOverallPercentage(simulatedEndSem: Double) -> Double {
+        let totalMax = internalMaxMarks + endSemMaxMarks
+        guard totalMax > 0 else { return 0 }
+        let safeSimulated = min(max(0, simulatedEndSem), endSemMaxMarks)
+        return ((internalMarksObtained + safeSimulated) / totalMax) * 100.0
+    }
+
     var scoredPercentage: Double? {
         let scoredPairs = assessmentComponents.compactMap { component -> (Double, Double)? in
             guard let earned = component.earnedMarks, component.maxMarks > 0 else { return nil }
@@ -263,6 +315,58 @@ struct Subject: Identifiable, Codable, Equatable {
         return .f
     }
 
+    // ((A + x) / (T + x)) * 100
+    func projectedAttendance(afterAttending additionalClasses: Int) -> Double {
+        let safeAdditional = max(0, additionalClasses)
+        let attended = Double(presentCount + safeAdditional)
+        let total = Double(totalClasses + safeAdditional)
+        guard total > 0 else { return 100 }
+        return (attended / total) * 100
+    }
+
+    // x >= (P*T - A) / (1 - P), where A=current scored ratio, T=1.0
+    var targetPlannerUnitsNeeded: Double {
+        let p = min(0.999, max(0, targetGrade.requiredPercentage / 100.0))
+        let a = min(1, max(0, (weightedScoredPercentage ?? 0) / 100.0))
+        let t = 1.0
+        guard p < 1 else { return .infinity }
+        let value = (p * t - a) / (1 - p)
+        return max(0, value)
+    }
+
+    var weightedScoredPercentage: Double? {
+        guard !assessmentComponents.isEmpty else { return nil }
+
+        let bestOfGroups = Dictionary(grouping: assessmentComponents.filter { $0.isBestOf }, by: \.name)
+            .compactMapValues { group -> AssessmentComponent? in
+                group.max { lhs, rhs in
+                    (lhs.earnedMarks ?? 0) < (rhs.earnedMarks ?? 0)
+                }
+            }
+
+        var effective: [AssessmentComponent] = assessmentComponents.filter { !$0.isBestOf }
+        effective.append(contentsOf: bestOfGroups.values)
+
+        let weightedPairs = effective.compactMap { component -> (Double, Double)? in
+            guard let earned = component.earnedMarks, component.maxMarks > 0 else { return nil }
+            let normalized = earned / component.maxMarks
+            return (normalized * component.weightage, component.weightage)
+        }
+        guard !weightedPairs.isEmpty else { return nil }
+        let weightedScored = weightedPairs.reduce(0) { $0 + $1.0 }
+        let weightedTotal = weightedPairs.reduce(0) { $0 + $1.1 }
+        guard weightedTotal > 0 else { return nil }
+        return (weightedScored / weightedTotal) * 100
+    }
+
+    var isTargetGradeImpossible: Bool {
+        guard let current = weightedScoredPercentage else { return false }
+        let required = targetGrade.requiredPercentage
+        let remainingWeight = max(0, 100 - assessmentComponents.reduce(0) { $0 + $1.weightage })
+        let maxPossible = current + remainingWeight
+        return maxPossible < required
+    }
+
     mutating func markAttendance(isPresent: Bool) {
         manualTotal += 1
         if isPresent {
@@ -289,6 +393,10 @@ struct Subject: Identifiable, Codable, Equatable {
         case targetGrade
         case predictedGrade
         case academicProfile
+        case internalMarksObtained
+        case internalMaxMarks
+        case endSemMaxMarks
+        case choPassingMarks
     }
 
     init(from decoder: Decoder) throws {
@@ -297,7 +405,8 @@ struct Subject: Identifiable, Codable, Equatable {
         let id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         let name = try container.decode(String.self, forKey: .name)
         let shortName = try container.decodeIfPresent(String.self, forKey: .shortName) ?? name
-        let credits = try container.decodeIfPresent(Int.self, forKey: .credits) ?? 0
+        let credits = try container.decodeIfPresent(Double.self, forKey: .credits)
+            ?? Double(try container.decodeIfPresent(Int.self, forKey: .credits) ?? 0)
         let includeInGPA = try container.decodeIfPresent(Bool.self, forKey: .includeInGPA) ?? true
         let minimumRequired = try container.decodeIfPresent(Double.self, forKey: .minimumRequired) ?? 75.0
         let attendanceRecords = try container.decodeIfPresent([AttendanceRecord].self, forKey: .attendanceRecords) ?? []
@@ -307,6 +416,10 @@ struct Subject: Identifiable, Codable, Equatable {
         let targetGrade = try container.decodeIfPresent(GradeLetter.self, forKey: .targetGrade) ?? .a
         let predictedGrade = try container.decodeIfPresent(GradeLetter.self, forKey: .predictedGrade)
         let academicProfile = try container.decodeIfPresent(SubjectAcademicProfile.self, forKey: .academicProfile) ?? SubjectAcademicProfile()
+        let internalMarksObtained = try container.decodeIfPresent(Double.self, forKey: .internalMarksObtained) ?? 0
+        let internalMaxMarks = try container.decodeIfPresent(Double.self, forKey: .internalMaxMarks) ?? 40
+        let endSemMaxMarks = try container.decodeIfPresent(Double.self, forKey: .endSemMaxMarks) ?? 60
+        let choPassingMarks = try container.decodeIfPresent(Double.self, forKey: .choPassingMarks) ?? 40
 
         self.init(
             id: id,
@@ -321,7 +434,11 @@ struct Subject: Identifiable, Codable, Equatable {
             assessmentComponents: assessmentComponents,
             targetGrade: targetGrade,
             predictedGrade: predictedGrade,
-            academicProfile: academicProfile
+            academicProfile: academicProfile,
+            internalMarksObtained: internalMarksObtained,
+            internalMaxMarks: internalMaxMarks,
+            endSemMaxMarks: endSemMaxMarks,
+            choPassingMarks: choPassingMarks
         )
     }
 }

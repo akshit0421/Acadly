@@ -16,26 +16,29 @@ struct ScheduleRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(timeRangeText)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.accent)
 
             Text(item.lecture)
                 .font(.headline)
+                .foregroundStyle(AppTheme.textPrimary)
 
             Text(subjectShortName)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.textSecondary)
+
+            if item.lecturesCount > 1 {
+                Label("\(item.lecturesCount) classes", systemImage: "list.number")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.textSecondary)
+            }
 
             if let building = item.building, !building.isEmpty {
                 Label(building, systemImage: "building.2")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
+        .appCard()
     }
 
     private var subjectShortName: String {

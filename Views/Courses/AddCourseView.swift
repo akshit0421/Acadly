@@ -6,7 +6,7 @@ struct AddCourseView: View {
 
     @State private var name = ""
     @State private var shortName = ""
-    @State private var credits = 3
+    @State private var credits = 3.0
     @State private var minimumRequired = 75.0
     @State private var departmentRuleSet = DepartmentRuleSet.standard
 
@@ -16,7 +16,7 @@ struct AddCourseView: View {
                 Section("Course Info") {
                     TextField("Course Name", text: $name)
                     TextField("Short Name", text: $shortName)
-                    Stepper("Credits: \(credits)", value: $credits, in: 1...10)
+                    Stepper("Credits: \(credits, specifier: "%.1f")", value: $credits, in: 1...10, step: 0.5)
                 }
 
                 Section("Attendance Policy") {
@@ -33,6 +33,8 @@ struct AddCourseView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle("New Course")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

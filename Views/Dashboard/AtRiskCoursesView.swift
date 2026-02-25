@@ -7,24 +7,21 @@ struct AtRiskCoursesView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("At Risk Courses", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
-                .foregroundStyle(.orange)
+                .foregroundStyle(AppTheme.accent)
 
             ForEach(subjects) { subject in
                 HStack {
                     Text(subject.name)
                         .font(.subheadline)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
                     Text("\(Int(subject.attendancePercentage.rounded()))%")
                         .fontWeight(.semibold)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppTheme.accent)
                         .monospacedDigit()
                 }
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
+        .appCard()
     }
 }

@@ -19,6 +19,7 @@ struct AddScheduleView: View {
     @State private var endTime = Date().addingTimeInterval(3600)
     @State private var lecture = ""
     @State private var building = ""
+    @State private var lecturesCount = 1
 
     var onSave: (ScheduleItem) -> Void
 
@@ -73,8 +74,11 @@ struct AddScheduleView: View {
 
                     TextField("Lecture", text: $lecture)
                     TextField("Building (Optional)", text: $building)
+                    Stepper("Lectures in this slot: \(lecturesCount)", value: $lecturesCount, in: 1...6)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle("New Class")
             .toolbar {
 
@@ -98,7 +102,8 @@ struct AddScheduleView: View {
                                 startTime: startTime,
                                 endTime: endTime,
                                 lecture: lecture,
-                                building: building
+                                building: building,
+                                lecturesCount: lecturesCount
                             )
 
                             onSave(item)
