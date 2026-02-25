@@ -27,13 +27,6 @@ struct RootTabView: View {
             }
 
             NavigationStack {
-                AcademicPlannerView()
-            }
-            .tabItem {
-                Label("Planner", systemImage: "target")
-            }
-
-            NavigationStack {
                 ProfileSetupView()
             }
             .tabItem {
