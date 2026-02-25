@@ -8,7 +8,7 @@ struct MarksCHOView: View {
             if viewModel.subjects.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "book.closed")
-                        .font(.system(size: 52))
+                        .font(.largeTitle)
                         .foregroundStyle(.secondary)
                     Text("Add subjects to update CHO marks")
                         .font(.headline)

@@ -3,9 +3,6 @@ import SwiftUI
 struct CGPAView: View {
     @EnvironmentObject private var viewModel: CoursesViewModel
     @State private var simulatedMarks: [UUID: Double] = [:]
-    @State private var targetCGPAInput = ""
-    @State private var previousCGPAInput = ""
-    @State private var previousCreditsInput = ""
 
     var body: some View {
         ScrollView {
@@ -13,21 +10,26 @@ struct CGPAView: View {
                 if viewModel.subjects.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "book.closed")
-                            .font(.system(size: 52))
+                            .font(.largeTitle)
                             .foregroundStyle(.secondary)
                         Text("Add subjects to calculate CGPA")
                             .font(.headline)
                     }
                     .padding(.top, 60)
                 } else {
-                    plannerInputsCard
+                    Text("Set your baseline CGPA in Profile → Profile Setup")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     StatCardView(
                         title: "Current SGPA",
                         value: String(format: "%.2f", viewModel.currentSGPA),
                         systemImage: "chart.bar.fill"
                     ) {
-                        EmptyView()
+                        Text("This semester's grade points")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
                     StatCardView(
@@ -35,7 +37,9 @@ struct CGPAView: View {
                         value: String(format: "%.2f", viewModel.calculateProjectedCGPA(simulatedEndSemMarks: simulatedMarks)),
                         systemImage: "chart.line.uptrend.xyaxis"
                     ) {
-                        EmptyView()
+                        Text("Based on your end-sem simulation")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
 
                     StatCardView(
@@ -86,60 +90,5 @@ struct CGPAView: View {
         }
         .appScreenBackground()
         .navigationTitle("CGPA")
-        .onAppear {
-            targetCGPAInput = String(format: "%.2f", viewModel.targetCGPA)
-            previousCGPAInput = String(format: "%.2f", viewModel.previousCGPA)
-            previousCreditsInput = String(format: "%.0f", viewModel.previousCredits)
-        }
-    }
-
-    private var plannerInputsCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("CGPA Impact Simulation", systemImage: "function")
-                .font(.headline)
-
-            HStack {
-                Text("Target")
-                Spacer()
-                TextField("8.50", text: $targetCGPAInput)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 90)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit {
-                        viewModel.updateTargetCGPA(Double(targetCGPAInput) ?? viewModel.targetCGPA)
-                    }
-            }
-
-            HStack {
-                Text("Previous CGPA")
-                Spacer()
-                TextField("0", text: $previousCGPAInput)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 90)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            HStack {
-                Text("Previous Credits")
-                Spacer()
-                TextField("0", text: $previousCreditsInput)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 90)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            Button("Apply Simulation Base") {
-                viewModel.updateTargetCGPA(Double(targetCGPAInput) ?? viewModel.targetCGPA)
-                viewModel.updatePastAcademics(
-                    previousCGPA: Double(previousCGPAInput) ?? viewModel.previousCGPA,
-                    previousCredits: Double(previousCreditsInput) ?? viewModel.previousCredits
-                )
-            }
-            .buttonStyle(AppSecondaryButtonStyle())
-        }
-        .appCard()
     }
 }

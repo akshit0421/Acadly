@@ -1,7 +1,4 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct DashboardView: View {
     private struct MarkedClassState {
@@ -9,13 +6,12 @@ struct DashboardView: View {
         var lectureCount: Int
     }
 
-    private struct UndoToastPayload: Identifiable {
-        let id = UUID()
-        let itemID: UUID
-        let subjectID: UUID
-        let previous: MarkedClassState?
-        let current: MarkedClassState?
-        let message: String
+    private struct UndoPayload {
+        var itemID: UUID
+        var subjectID: UUID
+        var previous: MarkedClassState?
+        var current: MarkedClassState?
+        var message: String
     }
 
     @EnvironmentObject private var viewModel: CoursesViewModel
@@ -24,126 +20,101 @@ struct DashboardView: View {
     @State private var now = Date()
     @State private var markedClasses: [UUID: MarkedClassState] = [:]
     @State private var expandedLectureEditorID: UUID?
-    @State private var undoToast: UndoToastPayload?
-    @State private var undoDismissTask: Task<Void, Never>?
-    @State private var animatedCheckItemID: UUID?
     @State private var isHealthExpanded = false
-    @State private var animateIn = false
+
+    @State private var showUndo = false
+    @State private var undoPayload: UndoPayload?
+    @State private var undoDismissTask: Task<Void, Never>?
+    @State private var feedbackTrigger = 0
 
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            headerInline
-            healthChip
-            todayClassesSection
-                .frame(maxHeight: .infinity, alignment: .top)
+        List {
+            Section {
+                DisclosureGroup(isExpanded: $isHealthExpanded) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Predicted CGPA: \(String(format: "%.2f", viewModel.currentSGPA))")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text(insightMessage)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    Label {
+                        Text(healthSummaryText)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                    } icon: {
+                        Image(systemName: riskCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(riskCount == 0 ? Color.green : Color.orange)
+                    }
+                }
+            }
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppTheme.card)
+            )
+
+            Section("Today's Classes") {
+                if todayItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Label("No classes today", systemImage: "moon.zzz")
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textSecondary)
+
+                        if scheduleViewModel.items.isEmpty && !viewModel.subjects.isEmpty {
+                            NavigationLink(destination: ScheduleView()) {
+                                Text("Set up your weekly schedule →")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AppTheme.accent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(todayItems) { item in
+                        todayClassRow(item)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
+                }
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .appScreenBackground()
+        .navigationTitle(greeting)
+        .navigationBarTitleDisplayMode(.large)
         .overlay(alignment: .bottom) {
-            if let undoToast {
-                undoToastView(undoToast)
+            if showUndo, let undoPayload {
+                undoToastView(message: undoPayload.message)
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 10)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .onAppear {
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
-                animateIn = true
-            }
-        }
+        .successSensoryFeedback(trigger: feedbackTrigger)
         .onReceive(timer) { value in
             now = value
         }
     }
 
-    private var headerInline: some View {
-        Text("\(greeting) · \(now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))")
-            .font(.caption)
-            .foregroundStyle(AppTheme.textSecondary)
-    }
-
-    private var healthChip: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
-                isHealthExpanded.toggle()
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: riskCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(riskCount == 0 ? Color.green : Color.orange)
-                    Text(healthSummaryText)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .lineLimit(1)
-                    Spacer()
-                    Image(systemName: isHealthExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textSecondary)
-                }
-
-                if isHealthExpanded {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Predicted CGPA \(String(format: "%.2f", predictedCGPA))")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                        Text(insightMessage)
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .appCard()
-        .scaleEffect(animateIn ? 1 : 0.98)
-        .opacity(animateIn ? 1 : 0)
-        .animation(.spring(response: 0.55, dampingFraction: 0.82), value: animateIn)
-    }
-
-    private var todayClassesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Today's Classes")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.textSecondary)
-            if todayItems.isEmpty {
-                Text("No classes scheduled today.")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .padding(.vertical, 12)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(todayItems) { item in
-                            todayClassCard(item)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: todayItems.map(\.id))
-    }
-
-    private func todayClassCard(_ item: ScheduleItem) -> some View {
+    private func todayClassRow(_ item: ScheduleItem) -> some View {
         let markedState = markedClasses[item.id]
         let marked = markedState?.status
-        let subjectColor = (viewModel.subject(withID: item.subjectID)?.attendancePercentage).map(riskColor(for:)) ?? AppTheme.accent
+        let isPresent = marked == "present"
+        let isAbsent = marked == "absent"
 
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(marked == "present" ? Color.green : marked == "absent" ? Color.red : subjectColor)
-                    .frame(width: 3, height: 44)
-
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(item.lecture)
                         .font(.headline)
                         .foregroundStyle(AppTheme.textPrimary)
@@ -154,68 +125,84 @@ struct DashboardView: View {
 
                 Spacer()
 
-                HStack(spacing: 8) {
-                    markActionButton(
-                        systemImage: "checkmark",
-                        title: "Present",
-                        tint: .green,
-                        isActive: marked == "present",
-                        animated: animatedCheckItemID == item.id
-                    ) {
-                        handlePresentTap(for: item)
-                    }
-                    markActionButton(
-                        systemImage: "xmark",
-                        title: "Absent",
-                        tint: .red,
-                        isActive: marked == "absent",
-                        animated: false
-                    ) {
-                        handleAbsentTap(for: item)
-                    }
+                if isPresent {
+                    Label(
+                        expandedLectureEditorID == item.id ? "Adjust lectures" : "1 lecture",
+                        systemImage: expandedLectureEditorID == item.id ? "chevron.up" : "number.circle"
+                    )
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(AppTheme.accent)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
             }
 
-            if marked == "present", expandedLectureEditorID == item.id {
-                let count = max(1, markedState?.lectureCount ?? 1)
+            if isPresent, expandedLectureEditorID == item.id {
                 Stepper(value: lectureCountBinding(for: item), in: 1...8) {
-                    Text("Lectures counted: \(count)")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
+                    Text("How many lectures in this class?")
+                        .font(.subheadline)
                 }
                 .tint(AppTheme.accent)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            if let marked {
-                statusBadge(label: marked == "present" ? "Marked Present" : "Marked Absent", color: marked == "present" ? .green : .red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if isPresent || isAbsent {
+                Label(isPresent ? "Marked Present" : "Marked Absent", systemImage: isPresent ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(isPresent ? Color.green : Color.red)
+            }
+
+            if markedState == nil {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.left.and.right")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary.opacity(0.6))
+                    Text("Swipe to mark")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.textSecondary.opacity(0.6))
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .padding(14)
+        .frame(minHeight: 44, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(AppTheme.card)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(AppTheme.track.opacity(0.3), lineWidth: 1)
+                        .stroke(AppTheme.track.opacity(0.28), lineWidth: 1)
                 )
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard isPresent else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                expandedLectureEditorID = expandedLectureEditorID == item.id ? nil : item.id
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                handlePresentSwipe(for: item)
+            } label: {
+                Label("Present", systemImage: "checkmark.circle.fill")
+            }
+            .tint(.green)
+            .accessibilityLabel("Mark present")
+            .accessibilityHint("Marks this class as attended")
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                handleAbsentSwipe(for: item)
+            } label: {
+                Label("Absent", systemImage: "xmark.circle.fill")
+            }
+            .tint(.red)
+            .accessibilityLabel("Mark absent")
+            .accessibilityHint("Marks this class as missed")
+        }
     }
 
     private var todayItems: [ScheduleItem] {
         scheduleViewModel.items(for: weekday(from: now)).sorted { $0.startTime < $1.startTime }
-    }
-
-    private var overallAttendanceAverage: Double {
-        guard !viewModel.subjects.isEmpty else { return 0 }
-        let sum = viewModel.subjects.reduce(0.0) { $0 + $1.attendancePercentage }
-        return sum / Double(viewModel.subjects.count)
-    }
-
-    private var predictedCGPA: Double {
-        let raw = 7.2 + ((overallAttendanceAverage - 75) * 0.04)
-        return min(10, max(4, raw))
     }
 
     private var riskCount: Int {
@@ -237,23 +224,20 @@ struct DashboardView: View {
 
     private var insightMessage: String {
         if let critical = viewModel.subjects.first(where: { $0.attendancePercentage < 65 }) {
-            return "⚠ \(critical.name) is critical — attend next \(critical.classesToRecover) classes to recover."
+            return "\(critical.name) needs recovery: attend next \(critical.classesToRecover) classes."
         }
         if riskCount > 0 {
-            return "\(riskCount) subject(s) need attention. Stay consistent this week."
+            return "Focus this week: \(riskCount) subject(s) are below target attendance."
         }
-        return "✓ You're on track. Keep the momentum going."
+        return "You are currently in a safe attendance range."
     }
 
-    private func handlePresentTap(for item: ScheduleItem) {
+    private func handlePresentSwipe(for item: ScheduleItem) {
         let previous = markedClasses[item.id]
-
         if previous?.status == "present" {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
                 expandedLectureEditorID = item.id
             }
-            triggerCheckAnimation(for: item.id)
-            feedbackImpactLight()
             return
         }
 
@@ -263,11 +247,9 @@ struct DashboardView: View {
             expandedLectureEditorID = item.id
         }
         showUndoToast(for: item, previous: previous, current: current, message: "Marked \(item.lecture) present")
-        triggerCheckAnimation(for: item.id)
-        feedbackNotification(.success)
     }
 
-    private func handleAbsentTap(for item: ScheduleItem) {
+    private func handleAbsentSwipe(for item: ScheduleItem) {
         let previous = markedClasses[item.id]
         let current = MarkedClassState(status: "absent", lectureCount: 1)
         applyStateChange(for: item, from: previous, to: current)
@@ -277,7 +259,6 @@ struct DashboardView: View {
             }
         }
         showUndoToast(for: item, previous: previous, current: current, message: "Marked \(item.lecture) absent")
-        feedbackNotification(.warning)
     }
 
     private func applyStateChange(for item: ScheduleItem, from previous: MarkedClassState?, to current: MarkedClassState?) {
@@ -290,7 +271,7 @@ struct DashboardView: View {
             viewModel.adjustAttendance(for: item.subjectID, presentDelta: presentDelta, totalDelta: totalDelta)
         }
 
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             if let current {
                 markedClasses[item.id] = current
             } else {
@@ -329,63 +310,75 @@ struct DashboardView: View {
         message: String
     ) {
         undoDismissTask?.cancel()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-            undoToast = UndoToastPayload(
-                itemID: item.id,
-                subjectID: item.subjectID,
-                previous: previous,
-                current: current,
-                message: message
-            )
+        undoPayload = UndoPayload(itemID: item.id, subjectID: item.subjectID, previous: previous, current: current, message: message)
+
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+            showUndo = true
         }
 
+        feedbackTrigger += 1
+
         undoDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                undoToast = nil
+            try? await Task.sleep(for: .seconds(5))
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                showUndo = false
             }
         }
     }
 
     private func undoLastAction() {
-        guard let toast = undoToast else { return }
-        let before = attendanceContribution(for: toast.current)
-        let after = attendanceContribution(for: toast.previous)
+        guard let undoPayload else { return }
+        let before = attendanceContribution(for: undoPayload.current)
+        let after = attendanceContribution(for: undoPayload.previous)
         let presentDelta = after.present - before.present
         let totalDelta = after.total - before.total
 
         if presentDelta != 0 || totalDelta != 0 {
-            viewModel.adjustAttendance(for: toast.subjectID, presentDelta: presentDelta, totalDelta: totalDelta)
+            viewModel.adjustAttendance(for: undoPayload.subjectID, presentDelta: presentDelta, totalDelta: totalDelta)
         }
 
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
-            if let previous = toast.previous {
-                markedClasses[toast.itemID] = previous
-                expandedLectureEditorID = previous.status == "present" ? toast.itemID : nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) {
+            if let previous = undoPayload.previous {
+                markedClasses[undoPayload.itemID] = previous
+                expandedLectureEditorID = previous.status == "present" ? undoPayload.itemID : nil
             } else {
-                markedClasses.removeValue(forKey: toast.itemID)
-                if expandedLectureEditorID == toast.itemID {
+                markedClasses.removeValue(forKey: undoPayload.itemID)
+                if expandedLectureEditorID == undoPayload.itemID {
                     expandedLectureEditorID = nil
                 }
             }
-            undoToast = nil
+            showUndo = false
         }
+
         undoDismissTask?.cancel()
-        feedbackImpactLight()
     }
 
-    private func triggerCheckAnimation(for itemID: UUID) {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.66)) {
-            animatedCheckItemID = itemID
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
-            withAnimation(.easeOut(duration: 0.18)) {
-                if animatedCheckItemID == itemID {
-                    animatedCheckItemID = nil
-                }
+    private func undoToastView(message: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .foregroundStyle(AppTheme.accent)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Undo") {
+                undoLastAction()
             }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.accent)
+            .frame(minWidth: 44, minHeight: 44)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppTheme.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppTheme.track.opacity(0.35), lineWidth: 1)
+                )
+        )
     }
 
     private func weekday(from date: Date) -> Weekday {
@@ -399,96 +392,15 @@ struct DashboardView: View {
         default: return .saturday
         }
     }
+}
 
-    private func riskColor(for percentage: Double) -> Color {
-        if percentage >= 85 { return .green }
-        if percentage >= 75 { return AppTheme.accent }
-        if percentage >= 60 { return .orange }
-        return .red
-    }
-
-    private func statusBadge(label: String, color: Color) -> some View {
-        Text(label.uppercased())
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(color.opacity(0.15))
-                    .overlay(Capsule(style: .continuous).stroke(color.opacity(0.4), lineWidth: 1))
-            )
-    }
-
-    private func markActionButton(
-        systemImage: String,
-        title: String,
-        tint: Color,
-        isActive: Bool,
-        animated: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .font(.headline.weight(.bold))
-                    .scaleEffect(animated ? 1.18 : 1)
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(isActive ? .white : tint)
-            .frame(minWidth: 96, minHeight: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isActive ? tint : tint.opacity(0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(tint.opacity(isActive ? 0 : 0.4), lineWidth: 1)
-                    )
-            )
+private extension View {
+    @ViewBuilder
+    func successSensoryFeedback(trigger: Int) -> some View {
+        if #available(iOS 17.0, *) {
+            self.sensoryFeedback(.success, trigger: trigger)
+        } else {
+            self
         }
-        .buttonStyle(.plain)
-    }
-
-    private func undoToastView(_ toast: UndoToastPayload) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(AppTheme.accent)
-            Text(toast.message)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            Button("Undo") {
-                undoLastAction()
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(AppTheme.accent)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(AppTheme.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppTheme.track.opacity(0.35), lineWidth: 1)
-                )
-        )
-        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
-    }
-
-    private func feedbackNotification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-#if canImport(UIKit)
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(type)
-#endif
-    }
-
-    private func feedbackImpactLight() {
-#if canImport(UIKit)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
-#endif
     }
 }

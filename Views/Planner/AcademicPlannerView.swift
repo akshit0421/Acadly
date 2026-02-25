@@ -96,6 +96,7 @@ struct AcademicPlannerView: View {
                         .offset(y: animateList ? 0 : 8)
                     }
                     .buttonStyle(.plain)
+                    .highTapTarget()
                 }
             }
             .padding(16)
@@ -116,6 +117,7 @@ struct AcademicPlannerView: View {
                         .font(.subheadline.weight(.semibold))
                 }
                 .buttonStyle(.plain)
+                .highTapTarget()
                 .foregroundStyle(AppTheme.accent)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -185,6 +187,7 @@ struct AcademicPlannerView: View {
                                     .scaleEffect(targetGrade == grade ? 1 : 0.98)
                             }
                             .buttonStyle(.plain)
+                            .highTapTarget()
                         }
                     }
                 }

@@ -44,6 +44,7 @@ struct AppPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .foregroundStyle(Color.white)
+            .frame(minHeight: 44)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -60,6 +61,7 @@ struct AppSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.headline)
             .foregroundStyle(AppTheme.textPrimary)
+            .frame(minHeight: 44)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -85,5 +87,11 @@ extension View {
             AppTheme.background.ignoresSafeArea()
             self
         }
+    }
+
+    func highTapTarget() -> some View {
+        self
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
     }
 }

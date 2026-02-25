@@ -13,8 +13,8 @@ struct AddCourseView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Course Info") {
-                    TextField("Course Name", text: $name)
+                Section("Subject Info") {
+                    TextField("Subject Name", text: $name)
                     TextField("Short Name", text: $shortName)
                     Stepper("Credits: \(credits, specifier: "%.1f")", value: $credits, in: 1...10, step: 0.5)
                 }
@@ -25,17 +25,22 @@ struct AddCourseView: View {
                     }
                 }
 
-                Section("Academic Setup") {
-                    Picker("Department Rules", selection: $departmentRuleSet) {
-                        ForEach(DepartmentRuleSet.allCases, id: \.self) { ruleSet in
-                            Text(ruleSet.rawValue.capitalized).tag(ruleSet)
+                Section {
+                    DisclosureGroup("Advanced Settings (optional)", isExpanded: .constant(false)) {
+                        Picker("Department Rules", selection: $departmentRuleSet) {
+                            ForEach(DepartmentRuleSet.allCases, id: \.self) { ruleSet in
+                                Text(ruleSet.rawValue.capitalized).tag(ruleSet)
+                            }
                         }
+                        Text("This affects how CHO passing marks are calculated")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
-            .navigationTitle("New Course")
+            .navigationTitle("New Subject")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

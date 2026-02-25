@@ -15,9 +15,7 @@ struct ProfileSetupView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("System")
-                    .font(.title2.weight(.bold))
-                Text("Your academic profile")
+                Text("Attendance and grade settings for this semester")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
 
@@ -112,7 +110,16 @@ struct ProfileSetupView: View {
             }
 
             entryField("Baseline CGPA", text: $baselineCGPA, keyboard: .decimalPad)
+            Text("Your CGPA from previous semesters (used to calculate cumulative GPA)")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.horizontal, 4)
+
             entryField("Previous Credits", text: $baselineCredits, keyboard: .numberPad)
+            Text("Total credits you've completed before this semester")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.horizontal, 4)
 
             Button {
                 coursesViewModel.updatePastAcademics(

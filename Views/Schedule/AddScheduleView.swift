@@ -56,6 +56,7 @@ struct AddScheduleView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .highTapTarget()
                         }
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {

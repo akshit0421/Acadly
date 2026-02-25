@@ -105,6 +105,7 @@ struct ScheduleView: View {
                         .foregroundStyle(isSameDay(date, selectedDate) ? Color.white : Color.primary)
                     }
                     .buttonStyle(.plain)
+                    .highTapTarget()
                 }
             }
         }

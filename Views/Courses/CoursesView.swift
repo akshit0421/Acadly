@@ -13,7 +13,6 @@ struct CoursesView: View {
     @State private var selectedSubjectID: UUID?
     @State private var selectedDetailSection: DetailSection = .attendance
     @State private var simExtraClasses: Double = 0
-    @State private var animateList = false
 
     private var selectedSubject: Subject? {
         guard let selectedSubjectID else { return nil }
@@ -29,20 +28,28 @@ struct CoursesView: View {
             }
         }
         .appScreenBackground()
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                animateList = true
-            }
-        }
-        .animation(.spring(response: 0.45, dampingFraction: 0.86), value: selectedSubjectID)
+        .navigationTitle(selectedSubject?.name ?? "Subjects")
+        .navigationBarTitleDisplayMode(selectedSubject == nil ? .large : .inline)
         .toolbar {
             if selectedSubject == nil {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showAddSheet = true
                     } label: {
-                        Label("Add Course", systemImage: "plus")
+                        Label("Add Subject", systemImage: "plus")
                     }
+                    .highTapTarget()
+                }
+            } else {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        selectedSubjectID = nil
+                        selectedDetailSection = .attendance
+                        simExtraClasses = 0
+                    } label: {
+                        Label("Back", systemImage: "chevron.left")
+                    }
+                    .highTapTarget()
                 }
             }
         }
@@ -52,279 +59,197 @@ struct CoursesView: View {
     }
 
     private var subjectList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Tap a subject to manage")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.textSecondary)
-
+        List {
+            Section {
                 ForEach(viewModel.subjects) { subject in
-                    let p = subject.attendancePercentage
                     Button {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                            selectedSubjectID = subject.id
-                            selectedDetailSection = .attendance
-                            simExtraClasses = 0
-                        }
+                        selectedSubjectID = subject.id
+                        selectedDetailSection = .attendance
+                        simExtraClasses = 0
                     } label: {
-                        HStack(spacing: 14) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(riskColor(for: p))
-                                .frame(width: 3, height: 52)
-
-                            VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text(subject.name)
                                     .font(.headline)
                                     .foregroundStyle(AppTheme.textPrimary)
                                 Text("\(subject.shortName) · \(String(format: "%.1f", subject.credits)) credits")
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.textSecondary)
-
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(AppTheme.track.opacity(0.35))
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(riskColor(for: p))
-                                            .frame(width: geo.size.width * min(1, max(0, p / 100)))
-                                    }
-                                }
-                                .frame(height: 4)
                             }
 
                             Spacer()
 
-                            VStack(alignment: .trailing, spacing: 6) {
-                                Text("\(Int(p.rounded()))%")
-                                    .font(.title3.weight(.black).monospacedDigit())
-                                    .foregroundStyle(riskColor(for: p))
-                                badge(riskLabel(for: p), color: riskColor(for: p))
-                            }
+                            Text(riskLabel(for: subject.attendancePercentage))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(riskBadgeColor(for: subject.attendancePercentage))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(riskBadgeColor(for: subject.attendancePercentage).opacity(0.15))
+                                .clipShape(.capsule)
+                                .accessibilityLabel("Attendance risk: \(riskAccessibilityLevel(for: subject.attendancePercentage))")
+                                .accessibilityHint("Indicates attendance risk level")
                         }
-                        .appCard()
-                        .opacity(animateList ? 1 : 0)
-                        .offset(y: animateList ? 0 : 8)
+                        .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
+                    .highTapTarget()
+                    .listRowBackground(Color(.secondarySystemGroupedBackground))
                 }
+            } header: {
+                Text("Tap a subject to manage")
             }
-            .padding(16)
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
     }
 
     private func subjectDetail(_ subject: Subject) -> some View {
-        let p = subject.attendancePercentage
-        let simulatedP = subject.projectedAttendance(afterAttending: Int(simExtraClasses))
-
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Button {
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                        selectedSubjectID = nil
-                        selectedDetailSection = .attendance
-                        simExtraClasses = 0
-                    }
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.accent)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(subject.shortName)
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.textSecondary)
-                        .textCase(.uppercase)
-                    Text(subject.name)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    badge(riskLabel(for: p), color: riskColor(for: p))
-                }
-
-                Picker("Section", selection: $selectedDetailSection) {
-                    ForEach(DetailSection.allCases) { section in
-                        Text(section.rawValue).tag(section)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if selectedDetailSection == .attendance {
-                    attendanceSection(subject: subject, percentage: p, simulated: simulatedP)
-                } else {
-                    marksGoalsSection(subject: subject)
+        List {
+            if selectedDetailSection == .attendance {
+                attendanceSections(subject)
+            } else {
+                marksGoalSections(subject)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .safeAreaInset(edge: .top) {
+            Picker("Detail Section", selection: $selectedDetailSection) {
+                ForEach(DetailSection.allCases) { section in
+                    Text(section.rawValue).tag(section)
                 }
             }
-            .padding(16)
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(.systemGroupedBackground))
         }
     }
 
-    private func attendanceSection(subject: Subject, percentage p: Double, simulated simulatedP: Double) -> some View {
-        Group {
-            HStack(spacing: 16) {
-                ProgressRingView(progress: min(1, max(0, p / 100)))
-                    .frame(width: 88, height: 88)
-                    .overlay {
-                        Text("\(Int(p.rounded()))%")
-                            .font(.headline.weight(.bold).monospacedDigit())
-                            .foregroundStyle(riskColor(for: p))
-                    }
+    @ViewBuilder
+    private func attendanceSections(_ subject: Subject) -> some View {
+        let p = subject.attendancePercentage
+        let simulated = subject.projectedAttendance(afterAttending: Int(simExtraClasses))
 
-                VStack(alignment: .leading, spacing: 8) {
-                    detailStat("Attended", "\(subject.presentCount)/\(subject.totalClasses)", .primary)
-                    detailStat("Safe to Miss", subject.classesCanMiss > 0 ? "\(subject.classesCanMiss) classes" : "None", subject.classesCanMiss > 0 ? .green : .red)
-                    if p < subject.minimumRequired {
-                        detailStat("Need to Attend", "\(subject.classesToRecover) classes", .orange)
-                    }
-                }
-                Spacer()
+        Section("This Week") {
+            LabeledContent("Attendance") {
+                Text("\(Int(p.rounded()))%")
+                    .monospacedDigit()
             }
-            .appCard()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Quick Mark")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
-
-                HStack(spacing: 10) {
-                    Button {
-                        viewModel.markAttendance(for: subject.id, isPresent: true)
-                    } label: {
-                        Text("+ Present")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(AppPrimaryButtonStyle())
-
-                    Button {
-                        viewModel.markAttendance(for: subject.id, isPresent: false)
-                    } label: {
-                        Text("+ Absent")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(AppSecondaryButtonStyle())
+            LabeledContent("Attended") {
+                Text("\(subject.presentCount)/\(subject.totalClasses)")
+                    .monospacedDigit()
+            }
+            LabeledContent("Safe to Miss") {
+                Text(subject.classesCanMiss > 0 ? "\(subject.classesCanMiss)" : "0")
+                    .monospacedDigit()
+            }
+            if p < subject.minimumRequired {
+                LabeledContent("Need to Attend") {
+                    Text("\(subject.classesToRecover)")
+                        .monospacedDigit()
                 }
             }
-            .appCard()
+        }
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("What-If Simulator")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
+        Section("Quick Actions") {
+            HStack(spacing: 10) {
+                Button {
+                    viewModel.markAttendance(for: subject.id, isPresent: true)
+                } label: {
+                    Label("Present", systemImage: "checkmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .accessibilityLabel("Mark present")
+                .accessibilityHint("Adds one attended class")
+                .highTapTarget()
 
-                Text("Attend \(Int(simExtraClasses)) more consecutive classes")
+                Button {
+                    viewModel.markAttendance(for: subject.id, isPresent: false)
+                } label: {
+                    Label("Absent", systemImage: "xmark")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .accessibilityLabel("Mark absent")
+                .accessibilityHint("Adds one missed class")
+                .highTapTarget()
+            }
+            .padding(.vertical, 4)
+        }
+
+        Section("Simulator") {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Attend additional consecutive classes", systemImage: "slider.horizontal.3")
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.textSecondary)
 
                 Slider(value: $simExtraClasses, in: 0...20, step: 1)
-                    .tint(AppTheme.accent)
+                    .accessibilityLabel("Attendance what if slider")
+                    .accessibilityHint("Adjusts simulated attendance percentage")
 
-                HStack {
-                    Text("Projected attendance")
-                        .font(.subheadline)
-                        .foregroundStyle(AppTheme.textSecondary)
-                    Spacer()
-                    Text("\(Int(simulatedP.rounded()))%")
-                        .font(.title3.weight(.black).monospacedDigit())
-                        .foregroundStyle(simulatedP >= subject.minimumRequired ? .green : .orange)
-                }
-                .padding(10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill((simulatedP >= subject.minimumRequired ? Color.green : Color.orange).opacity(0.12))
-                )
+                Text("Projected attendance: \(Int(simulated.rounded()))%")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(simulated >= subject.minimumRequired ? Color.green : Color.orange)
             }
-            .appCard()
+            .padding(.vertical, 4)
         }
     }
 
-    private func marksGoalsSection(subject: Subject) -> some View {
+    @ViewBuilder
+    private func marksGoalSections(_ subject: Subject) -> some View {
         let prediction = predictGrade(for: subject, target: subject.targetGrade)
 
-        return Group {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Internal Marks")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
+        Section("Internal Marks") {
+            Stepper(
+                "\(Int(subject.internalMarksObtained.rounded())) / \(Int(subject.internalMaxMarks))",
+                value: Binding(
+                    get: { Int(subject.internalMarksObtained.rounded()) },
+                    set: { viewModel.updateInternalMarks(for: subject.id, value: Double($0)) }
+                ),
+                in: 0...max(0, Int(subject.internalMaxMarks))
+            )
+            ProgressView(value: subject.internalMarksObtained, total: max(1, subject.internalMaxMarks))
+                .tint(AppTheme.accent)
+            Text("Out of 50 (your weightage): \(Int(prediction.internalScaled.rounded()))")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .monospacedDigit()
+        }
 
-                Stepper(
-                    "\(Int(subject.internalMarksObtained.rounded())) / \(Int(subject.internalMaxMarks))",
-                    value: Binding(
-                        get: { Int(subject.internalMarksObtained.rounded()) },
-                        set: { viewModel.updateInternalMarks(for: subject.id, value: Double($0)) }
-                    ),
-                    in: 0...max(0, Int(subject.internalMaxMarks))
-                )
-
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(AppTheme.track.opacity(0.35))
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.indigo)
-                            .frame(width: geo.size.width * min(1, max(0, subject.internalMarksObtained / max(1, subject.internalMaxMarks))))
-                    }
-                }
-                .frame(height: 6)
-
-                Text("Scaled to 50 → \(Int(prediction.internalScaled.rounded())) marks")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .appCard()
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Target Grade")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
-
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                    ForEach(GradeLetter.allCases.filter { $0 != .f }) { grade in
-                        Button {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                                viewModel.updateTargetGrade(for: subject.id, grade: grade)
-                            }
-                        } label: {
-                            Text(grade.rawValue)
-                                .font(.subheadline.weight(.bold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(subject.targetGrade == grade ? Color.indigo : AppTheme.background.opacity(0.5))
-                                )
-                                .foregroundStyle(subject.targetGrade == grade ? .white : AppTheme.textSecondary)
-                                .scaleEffect(subject.targetGrade == grade ? 1 : 0.98)
-                        }
-                        .buttonStyle(.plain)
-                    }
+        Section("Target Grade") {
+            Picker("Target", selection: Binding(
+                get: { subject.targetGrade },
+                set: { viewModel.updateTargetGrade(for: subject.id, grade: $0) }
+            )) {
+                ForEach(GradeLetter.allCases.filter { $0 != .f }) { grade in
+                    Text(grade.rawValue).tag(grade)
                 }
             }
-            .appCard()
+            .pickerStyle(.menu)
+        }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("What You Need")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .textCase(.uppercase)
-
-                resultRow("Internal (scaled)", "\(Int(prediction.internalScaled.rounded())) / 50", .indigo)
-                resultRow("End-Sem needed", "\(Int(max(0, prediction.requiredEnd).rounded())) / \(Int(subject.endSemMaxMarks))", prediction.feasible ? AppTheme.accent : .red)
-
-                Text(prediction.feasible ? "✓ \(subject.targetGrade.rawValue) is achievable" : "✗ \(subject.targetGrade.rawValue) is out of reach")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(prediction.feasible ? .green : .red)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill((prediction.feasible ? Color.green : Color.red).opacity(0.12))
-                    )
+        Section("What You Need to Pass") {
+            LabeledContent("Your internal marks") {
+                Text("\(Int(prediction.internalScaled.rounded())) / 50")
+                    .monospacedDigit()
             }
-            .appCard()
+            LabeledContent("End-sem score needed") {
+                Text("\(Int(max(0, prediction.requiredEnd).rounded())) out of \(Int(subject.endSemMaxMarks))")
+                    .monospacedDigit()
+            }
+
+            if prediction.feasible {
+                Label("Target achievable", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Label("Target not achievable", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
         }
     }
 
@@ -336,54 +261,24 @@ struct CoursesView: View {
         return (internalScaled, requiredEnd, feasible)
     }
 
-    private func detailStat(_ title: String, _ value: String, _ color: Color) -> some View {
-        HStack {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(AppTheme.textSecondary)
-            Spacer()
-            Text(value)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(color)
-        }
-    }
-
-    private func badge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(color.opacity(0.13))
-                    .overlay(Capsule(style: .continuous).stroke(color.opacity(0.4), lineWidth: 1))
-            )
-    }
-
-    private func resultRow(_ title: String, _ value: String, _ color: Color) -> some View {
-        HStack {
-            Text(title)
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.textSecondary)
-            Spacer()
-            Text(value)
-                .font(.title3.weight(.black).monospacedDigit())
-                .foregroundStyle(color)
-        }
-    }
-
-    private func riskColor(for percentage: Double) -> Color {
-        if percentage >= 85 { return .green }
-        if percentage >= 75 { return AppTheme.accent }
-        if percentage >= 60 { return .orange }
-        return .red
-    }
-
     private func riskLabel(for percentage: Double) -> String {
         if percentage >= 85 { return "Safe" }
         if percentage >= 75 { return "On Track" }
         if percentage >= 60 { return "At Risk" }
         return "Critical"
     }
+
+    private func riskAccessibilityLevel(for percentage: Double) -> String {
+        if percentage >= 85 { return "Low" }
+        if percentage >= 75 { return "Medium" }
+        return "High"
+    }
+
+    private func riskBadgeColor(for percentage: Double) -> Color {
+        if percentage >= 85 { return .green }
+        if percentage >= 75 { return .blue }
+        if percentage >= 60 { return .orange }
+        return .red
+    }
+
 }
